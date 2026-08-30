@@ -20,8 +20,6 @@ from gerent.core.errors import (
 from gerent.core.types import (
     Msg,
     Role,
-    TextBlock,
-    ThinkingBlock,
     ToolCallBlock,
     ToolResultBlock,
     Usage,
@@ -78,7 +76,9 @@ class OpenAICompatProvider(ModelProvider):
             raise ProviderUnavailable(
                 "openai SDK not installed - pip install 'gerent[openai]'", provider=self.name
             ) from exc
-        key = api_key or os.environ.get(self.api_key_env) or ("none" if not self.requires_key else None)
+        key = api_key or os.environ.get(self.api_key_env)
+        if not key and not self.requires_key:
+            key = "none"
         if self.requires_key and not key:
             raise ProviderUnavailable(f"{self.api_key_env} is not set", provider=self.name)
         self._client = AsyncOpenAI(
@@ -219,7 +219,9 @@ class OpenAICompatProvider(ModelProvider):
                 # A model that emits malformed arguments is a bad turn, not a crash:
                 # surface it as an empty call and let the tool result say so.
                 arguments = {}
-            yield ToolCallComplete(id=slot["id"] or slot["name"], name=slot["name"], arguments=arguments)
+            yield ToolCallComplete(
+                id=slot["id"] or slot["name"], name=slot["name"], arguments=arguments
+            )
 
         yield UsageReport(usage)
         yield Stop(_STOP_REASONS.get(finish, StopReason.END_TURN))

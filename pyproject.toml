@@ -42,3 +42,8 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's whole API is function calls in argument defaults; B008 is a false
+# positive for every CLI parameter here.
+"gerent/ports/cli.py" = ["B008"]

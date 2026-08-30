@@ -4,7 +4,7 @@ import pytest
 
 from gerent.core.config import Config
 from gerent.core.errors import ConfigError, RetryableProviderError
-from gerent.reasoning.providers.base import CompletionRequest, Stop, StopReason, TextDelta
+from gerent.reasoning.providers.base import CompletionRequest, TextDelta
 from gerent.reasoning.providers.fake import FakeProvider
 from gerent.reasoning.router import Router
 

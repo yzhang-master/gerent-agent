@@ -49,7 +49,11 @@ class FakeProvider(ModelProvider):
         return self
 
     def say(self, text: str) -> FakeProvider:
-        return self.script(TextDelta(text), UsageReport(Usage(input_tokens=10, output_tokens=5)), Stop(StopReason.END_TURN))
+        return self.script(
+            TextDelta(text),
+            UsageReport(Usage(input_tokens=10, output_tokens=5)),
+            Stop(StopReason.END_TURN),
+        )
 
     def call_tool(self, name: str, **arguments: object) -> FakeProvider:
         return self.script(

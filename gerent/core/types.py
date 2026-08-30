@@ -19,7 +19,6 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 _last_ms = 0
 _counter = 0
 
