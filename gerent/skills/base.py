@@ -70,6 +70,7 @@ class SkillContext:
     guardrails: Any = None  # Guardrails; untyped here to keep the import graph acyclic
     checkpointer: Any = None
     scheduler: Any = None   # present only when the scheduler runs in this process
+    memories: Any = None    # MemoryStore, when one is configured
 
     async def progress(self, text: str) -> None:
         if self.emit is not None:

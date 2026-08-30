@@ -20,6 +20,7 @@ from gerent.core.config import Config, load_config
 from gerent.core.errors import GerentError
 from gerent.core.kernel import Kernel
 from gerent.core.types import Actor, EventKind, Source, TurnRequest
+from gerent.memory.store import InMemoryMemoryStore
 from gerent.planning.executor import Executor
 from gerent.planning.planner import Planner, needs_plan
 from gerent.planning.store import InMemoryPlanStore, PostgresPlanStore
@@ -49,7 +50,10 @@ def _setup_logging(config: Config) -> None:
 def _build(config: Config, workspace: Path | None) -> Kernel:
     router = Router(config)
     registry = SkillRegistry(config.skills).discover()
-    return Kernel(config, Engine(router), registry, workspace=workspace)
+    # Without a DSN this is non-durable, which the `do` command states plainly rather
+    # than letting the user assume otherwise.
+    memories = InMemoryMemoryStore()
+    return Kernel(config, Engine(router), registry, workspace=workspace, memories=memories)
 
 
 _streaming = False

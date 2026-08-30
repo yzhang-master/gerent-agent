@@ -66,7 +66,10 @@ class Engine:
     ) -> Completion:
         req = CompletionRequest(
             model="",
-            messages=messages,
+            # A snapshot, not the caller's live list: the kernel appends to its history
+            # as the turn proceeds, and a request that mutates after it was sent is a
+            # trap for any adapter that renders lazily.
+            messages=list(messages),
             system=system,
             tools=tools or [],
             max_tokens=self.max_tokens,

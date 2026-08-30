@@ -62,6 +62,7 @@ class Kernel:
         *,
         workspace: Path | None = None,
         scheduler: object | None = None,
+        memories: object | None = None,
     ) -> None:
         self.config = config
         self.engine = engine
@@ -69,6 +70,7 @@ class Kernel:
         self.guardrails = Guardrails(config.guardrails)
         self.workspace = workspace or config.guardrails.workspace_roots[0]
         self.scheduler = scheduler
+        self.memories = memories
         self.history: dict[str, list[Msg]] = {}
 
     async def run(
@@ -95,6 +97,13 @@ class Kernel:
 
         key = str(request.session_id)
         messages = self.history.setdefault(key, [])
+
+        # Relevant durable facts are injected automatically, which is what lets the
+        # `recall` skill be reserved for things similarity search did not surface.
+        # Volatile content goes AFTER the cached prefix, never into the system prompt.
+        if context := await self._recall(request):
+            messages.append(Msg(role=Role.SYSTEM, blocks=[TextBlock(text=context)]))
+
         messages.append(Msg(role=Role.USER, blocks=[TextBlock(text=request.text or "")]))
 
         events: list[TurnEvent] = []
@@ -192,6 +201,22 @@ class Kernel:
 
         yield TurnEvent.done(session_id=request.session_id)
 
+    async def _recall(self, request: TurnRequest) -> str:
+        if self.memories is None or not request.text:
+            return ""
+        try:
+            found = await self.memories.recall(
+                request.text, request.actor.id, self.config.memory.retrieval_top_k
+            )
+        except Exception:  # noqa: BLE001
+            # Memory is an enhancement; losing it must not fail the turn.
+            log.warning("memory.recall_failed", exc_info=True)
+            return ""
+        if not found:
+            return ""
+        facts = "\n".join(f"- {m.content}" for m in found)
+        return f"Things you remember that may be relevant:\n{facts}"
+
     def _capabilities(self, role: str):
         from gerent.reasoning.providers.base import Capabilities
 
@@ -240,6 +265,7 @@ class Kernel:
             guardrails=self.guardrails,
             checkpointer=checkpointer,
             scheduler=self.scheduler,
+            memories=self.memories,
         )
 
         try:
