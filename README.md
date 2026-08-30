@@ -35,12 +35,35 @@ ports ──► TurnRequest ──► Kernel (reason · plan · act · report) �
 
 ## Status
 
-**Pre-implementation.** This repo currently contains the design only. Documentation is
-written first, deliberately: the contracts in `docs/` are the expensive things to get
-wrong, and several of them (the normalized message format especially) are close to
-impossible to retrofit.
+Runs. M0-M4 are implemented and tested; M5 is partial; M6 is not started.
 
-See [docs/roadmap.md](docs/roadmap.md) for the build order. Nothing runs yet.
+| Milestone | State |
+|---|---|
+| M0 provider boundary, router, CLI | done |
+| M1 skills, guardrails, checkpoints, tool loop | done |
+| M2 semantic memory with automatic retrieval | done |
+| M3 durable plans, executor, journal, reporter, delegate | done |
+| M4 scheduler, timezone-correct triggers | done |
+| M5 voice | **partial** - pipeline, VAD, chunking and barge-in are done and tested; the Deepgram and Cartesia adapters are not written |
+| M6 HTTP/WebSocket port | not started |
+
+39 tests, all driven through scripted providers, so the suite costs nothing to run.
+
+**Not yet verified against a live model.** There are no provider credentials on this
+machine, so every test runs against a fake. The adapters are written to the documented
+APIs but have not made a real request - treat the first live run as the real smoke test.
+
+Two things needed before a real run: credentials for at least one provider, and (for
+durable plans) a Postgres role. Without a DSN the agent still runs, and tells you plainly
+that plans are held in memory.
+
+```bash
+uv venv && uv pip install -e ".[anthropic,openai,db,dev]"
+cp gerent.example.toml gerent.toml
+uv run gerent doctor                      # what is configured, reachable, missing
+uv run gerent chat "summarise this repo"
+uv run gerent do "add a test for the parser and run the suite"
+```
 
 ## Documentation
 
