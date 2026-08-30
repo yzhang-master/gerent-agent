@@ -69,6 +69,7 @@ class SkillContext:
     emit: Callable[[TurnEvent], Awaitable[None]] | None = None
     guardrails: Any = None  # Guardrails; untyped here to keep the import graph acyclic
     checkpointer: Any = None
+    scheduler: Any = None   # present only when the scheduler runs in this process
 
     async def progress(self, text: str) -> None:
         if self.emit is not None:

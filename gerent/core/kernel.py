@@ -61,12 +61,14 @@ class Kernel:
         registry: SkillRegistry,
         *,
         workspace: Path | None = None,
+        scheduler: object | None = None,
     ) -> None:
         self.config = config
         self.engine = engine
         self.registry = registry
         self.guardrails = Guardrails(config.guardrails)
         self.workspace = workspace or config.guardrails.workspace_roots[0]
+        self.scheduler = scheduler
         self.history: dict[str, list[Msg]] = {}
 
     async def run(
@@ -237,6 +239,7 @@ class Kernel:
             locale=request.locale or self.config.agent.default_locale,
             guardrails=self.guardrails,
             checkpointer=checkpointer,
+            scheduler=self.scheduler,
         )
 
         try:
