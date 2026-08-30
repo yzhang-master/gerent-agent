@@ -1,5 +1,9 @@
 # Roadmap
 
+> **Current state:** M0-M4 are implemented and tested, M5 is partial, M6 is not started.
+> See the status table in the [README](../README.md). The criteria below are what each
+> milestone was held to.
+
 Milestones are ordered so that each one produces something that runs. "Done" below
 means demonstrable, not written.
 

@@ -1,0 +1,30 @@
+# Copy to gerent.toml and edit. Secrets live in the environment, never here.
+# Full reference: docs/configuration.md
+
+[agent]
+timezone = "Europe/Warsaw"          # IANA name, never a UTC offset
+default_locale = "en-US"
+
+[providers.anthropic]
+enabled = true                      # key from ANTHROPIC_API_KEY or `ant auth login`
+
+[providers.openrouter]
+enabled = false                     # key from OPENROUTER_API_KEY
+
+[providers.ollama]
+enabled = false                     # local; no key needed
+
+[roles]                             # ordered failover chains; ask for roles, not models
+planner = ["anthropic:claude-opus-5"]
+worker  = ["anthropic:claude-opus-5"]
+cheap   = ["anthropic:claude-haiku-4-5"]
+coder   = ["anthropic:claude-opus-5"]
+
+[guardrails]
+workspace_roots = ["."]             # the primary containment boundary - keep it narrow
+
+[budgets.interactive]
+max_cost_usd = 5.0
+
+[budgets.scheduled]                 # tighter: nobody is watching
+max_cost_usd = 1.0
