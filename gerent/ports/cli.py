@@ -20,6 +20,9 @@ from gerent.core.config import Config, load_config
 from gerent.core.errors import GerentError
 from gerent.core.kernel import Kernel
 from gerent.core.types import Actor, EventKind, Source, TurnRequest
+from gerent.planning.executor import Executor
+from gerent.planning.planner import Planner, needs_plan
+from gerent.planning.store import InMemoryPlanStore, PostgresPlanStore
 from gerent.reasoning.engine import Engine
 from gerent.reasoning.router import PROVIDER_CLASSES, Router
 from gerent.reporting.journal import Journal
@@ -49,34 +52,60 @@ def _build(config: Config, workspace: Path | None) -> Kernel:
     return Kernel(config, Engine(router), registry, workspace=workspace)
 
 
+_streaming = False
+
+
+def _render_event(event, *, quiet: bool) -> None:
+    """The TurnEvent rendering table for a terminal. This is the whole port contract."""
+    global _streaming
+    match event.kind:
+        case EventKind.TEXT_DELTA:
+            console.print(event.text, end="", markup=False, highlight=False)
+            _streaming = True
+        case EventKind.THINKING:
+            if not quiet and event.text.strip():
+                _newline()
+                console.print(f"[dim]{event.text.strip()[:120]}[/dim]")
+        case EventKind.ASSUMPTION:
+            _newline()
+            console.print(f"[yellow]assumed:[/yellow] {event.text}")
+        case EventKind.TOOL_RESULT:
+            _newline()
+            mark = "[green]✓[/green]" if event.data.get("ok") else "[red]✗[/red]"
+            detail = event.text.splitlines()[0][:100] if event.text else ""
+            console.print(f"{mark} [cyan]{event.data.get('skill')}[/cyan] {detail}")
+        case EventKind.DEGRADATION:
+            _newline()
+            console.print(f"[yellow]degraded:[/yellow] {event.text}")
+        case EventKind.ERROR:
+            _newline()
+            console.print(f"[red]error:[/red] {event.text}")
+        case EventKind.DONE:
+            _newline()
+
+
+def _newline() -> None:
+    global _streaming
+    if _streaming:
+        console.print()
+        _streaming = False
+
+
 async def _render(kernel: Kernel, request: TurnRequest, journal: Journal, *, quiet: bool) -> None:
-    """The TurnEvent rendering table for a terminal."""
-    streaming = False
     async for event in kernel.run(request, journal=journal):
-        match event.kind:
-            case EventKind.TEXT_DELTA:
-                console.print(event.text, end="", markup=False, highlight=False)
-                streaming = True
-            case EventKind.THINKING:
-                if not quiet and event.text.strip():
-                    console.print(f"[dim]{event.text.strip()[:120]}[/dim]")
-            case EventKind.TOOL_RESULT:
-                if streaming:
-                    console.print()
-                    streaming = False
-                mark = "[green]✓[/green]" if event.data.get("ok") else "[red]✗[/red]"
-                detail = event.text.splitlines()[0][:100] if event.text else ""
-                console.print(f"{mark} [cyan]{event.data.get('skill')}[/cyan] {detail}")
-            case EventKind.DEGRADATION:
-                console.print(f"[yellow]degraded:[/yellow] {event.text}")
-            case EventKind.ERROR:
-                if streaming:
-                    console.print()
-                    streaming = False
-                console.print(f"[red]error:[/red] {event.text}")
-            case EventKind.DONE:
-                if streaming:
-                    console.print()
+        _render_event(event, quiet=quiet)
+
+
+async def _plan_store(config: Config):
+    """The real store is Postgres; in-memory is a stated degradation, not a default."""
+    if not config.db.dsn:
+        return InMemoryPlanStore(), False
+    from gerent.db.pool import Database
+
+    db = Database(config.db.dsn, min_size=config.db.pool_min, max_size=config.db.pool_max)
+    await db.connect()
+    await db.migrate()
+    return PostgresPlanStore(db), True
 
 
 @app.command()
@@ -142,7 +171,28 @@ def do(
             text=text,
             actor=Actor(name="cli"),
         )
-        await _render(kernel, request, journal, quiet=quiet)
+
+        if not needs_plan(text):
+            # Most goals are one turn. Planning them doubles latency and produces
+            # four-step plans for one-step jobs.
+            await _render(kernel, request, journal, quiet=quiet)
+            return
+
+        store, durable = await _plan_store(config)
+        if not durable:
+            console.print(
+                "[yellow]note:[/yellow] no [bold]db.dsn[/bold] configured - this plan is "
+                "held in memory and will not survive a crash. See docs/data-model.md."
+            )
+        executor = Executor(kernel, Planner(kernel.engine), store, config)
+        plan = await Planner(kernel.engine).plan(text, journal=journal)
+        console.print(f"[dim]plan: {len(plan.steps)} step(s)[/dim]")
+        for index, step in enumerate(plan.steps, 1):
+            console.print(f"[dim]  {index}. {step.description}[/dim]")
+
+        async for event in executor.run(plan, request, journal):
+            _render_event(event, quiet=quiet)
+        journal.finish()
 
     asyncio.run(run())
     console.rule("[bold]report[/bold]")
